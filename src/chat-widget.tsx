@@ -34,18 +34,29 @@ function ChatWidget({root}: { root: HTMLElement }) {
         return () => obs.disconnect();
     }, []);
 
-    /* AUTO SCROLL */
     useEffect(() => {
         bottomRef.current?.scrollIntoView({behavior: "smooth"});
     }, [messages.length, statusText]);
 
-    /* LOAD HISTORY */
     useEffect(() => {
-        fetchHistory(mode!, setMessages);
+        if (!mode) return;
+
+        fetchHistory(mode, setMessages)
+            .then(() => {
+            })
+            .catch((err) => {
+                console.error("History fetch error:", err);
+            });
     }, [mode]);
 
+
     const refetchHistory = () => {
-        fetchHistory(mode!, setMessages);
+        fetchHistory(mode!, setMessages)
+            .then(() => {
+            })
+            .catch((err) => {
+                console.error("History fetch error:", err);
+            });
     };
 
 
@@ -79,13 +90,11 @@ function ChatWidget({root}: { root: HTMLElement }) {
         es.onmessage = (e) => {
             const data = JSON.parse(e.data);
 
-            // STATUS
             if (data.type === "status") {
                 setStatusText(data.content);
                 return;
             }
 
-            // TOKEN (AI streaming)
             if (data.type === "token") {
                 buffer += data.content;
                 setMessages((p) =>
@@ -94,7 +103,6 @@ function ChatWidget({root}: { root: HTMLElement }) {
                 return;
             }
 
-            // MEDIA
             if (data.type === "media") {
                 setMessages((p) => [
                     ...p,
@@ -108,15 +116,11 @@ function ChatWidget({root}: { root: HTMLElement }) {
                 return;
             }
 
-            // DONE
             if (data.type === "done") {
                 es.close();
                 setStreaming(false);
                 setStatusText(null);
-
-                // 👇 MUHIM: history qayta yuklanadi
                 refetchHistory();
-
                 return;
             }
         };
@@ -154,7 +158,7 @@ function ChatWidget({root}: { root: HTMLElement }) {
                                         setMessages([]);
                                     }}
                                 >
-                  ✕
+                  <span className="close-icon">✕</span>
                 </span>
                             </div>
 
@@ -182,18 +186,16 @@ function ChatWidget({root}: { root: HTMLElement }) {
                                     )
                                 )}
 
-                                {statusText && (
-                                    <div className="chat-status">{statusText}</div>
-                                )}
-
                                 {streaming && statusText && (
                                     <div className="chat-status chat-status-loading">
                                         <span className="spinner"/>
                                         <span>{statusText}</span>
                                     </div>
                                 )}
+
                                 <div ref={bottomRef}/>
                             </div>
+
 
                             <div id="chat-widget-input">
                                 <input

@@ -6,7 +6,6 @@
     font-family: system-ui, sans-serif;
 }
 
-/* BUTTON */
 #chat-widget-btn {
     position: fixed;
     bottom: 24px;
@@ -23,7 +22,6 @@
     cursor: pointer;
 }
 
-/* PANEL */
 #chat-widget-panel {
     position: fixed;
     bottom: 90px;
@@ -39,7 +37,6 @@
     box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
 }
 
-/* HEADER */
 #chat-widget-header {
     height: 48px;
     padding: 0 14px;
@@ -50,7 +47,6 @@
     font-weight: 600;
 }
 
-/* ENTRY */
 .cw-entry {
     padding: 20px;
     display: grid;
@@ -70,7 +66,6 @@
     opacity: 0.7;
 }
 
-/* MESSAGES */
 #chat-widget-messages {
     flex: 1;
     padding: 12px;
@@ -112,14 +107,17 @@
     align-self: flex-start;
 }
 
-/* SPINNER */
 .spinner {
     width: 14px;
     height: 14px;
-    border: 2px solid rgba(255,255,255,0.3);
+    border: 2px solid rgba(255, 255, 255, 0.3);
     border-top-color: var(--cw-accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+}
+
+.close-icon {
+    cursor: pointer;
 }
 
 @keyframes spin {
@@ -129,7 +127,6 @@
 }
 
 
-/* INPUT */
 #chat-widget-input {
     display: flex;
     gap: 8px;
@@ -155,7 +152,6 @@
     cursor: pointer;
 }
 
-/* THEMES */
 [data-theme="dark"] {
     --cw-bg: #020617;
     --cw-text: #f8fafc;

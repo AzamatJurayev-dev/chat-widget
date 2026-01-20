@@ -1,8 +1,8 @@
 import {CONFIG} from "./const.ts";
 import type {Message} from "./types.ts";
 
-export function apiFetch(path: string, body: any) {
-    return fetch(CONFIG.baseURL + path, {
+export async function apiFetch(path: string, body: any) {
+    const r = await fetch(CONFIG.baseURL + path, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -11,10 +11,11 @@ export function apiFetch(path: string, body: any) {
             "X-Service-Key": CONFIG.serviceKey,
         },
         body: JSON.stringify(body),
-    }).then((r) => r.json());
+    });
+    return await r.json();
 }
 
-export const fetchHistory = async (mode: string, setMessages: (val:Message[]) => void) => {
+export const fetchHistory = async (mode: string, setMessages: (val: Message[]) => void) => {
     if (!mode) return;
 
     const historyType = mode === "admin" ? "sql" : "query";

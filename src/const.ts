@@ -1,4 +1,4 @@
-export const script =
+const script =
     (document.currentScript as HTMLScriptElement) ||
     document.querySelector('script[src*="chat-widget"]');
 

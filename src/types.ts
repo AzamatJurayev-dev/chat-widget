@@ -1,8 +1,12 @@
-export type ChatMode = "admin" | "user" | null;
+export type ChatMode = "user" | "admin" | null;
 
-export type Message = {
+export type MessageRole = "user" | "assistant";
+
+export type MessageKind = "text" | "media";
+
+export interface Message {
     id: string;
-    role: "user" | "assistant";
+    role: MessageRole;
     content: string;
-    kind?: "text" | "media";
-};
+    kind?: MessageKind;
+}

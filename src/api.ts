@@ -1,7 +1,10 @@
-import {CONFIG} from "./const.ts";
-import type {Message} from "./types.ts";
+import { CONFIG } from "./const";
+import type { Message } from "./types";
 
-export async function apiFetch(path: string, body: any) {
+export async function apiFetch<T>(
+    path: string,
+    body?: any
+): Promise<T> {
     const r = await fetch(CONFIG.baseURL + path, {
         method: "POST",
         headers: {
@@ -12,15 +15,18 @@ export async function apiFetch(path: string, body: any) {
         },
         body: JSON.stringify(body),
     });
-    return await r.json();
+
+    if (!r.ok) throw new Error("API error");
+    return r.json();
 }
 
-export const fetchHistory = async (mode: string, setMessages: (val: Message[]) => void) => {
-    if (!mode) return;
-
+export async function fetchHistory(
+    mode: "user" | "admin",
+    setMessages: (v: Message[]) => void
+) {
     const historyType = mode === "admin" ? "sql" : "query";
 
-    const res = await fetch(
+    const r = await fetch(
         `${CONFIG.baseURL}/history/?history_type=${historyType}`,
         {
             headers: {
@@ -29,7 +35,9 @@ export const fetchHistory = async (mode: string, setMessages: (val: Message[]) =
                 "X-Service-Key": CONFIG.serviceKey,
             },
         }
-    ).then((r) => r.json());
+    );
+
+    const res = await r.json();
 
     if (Array.isArray(res.results)) {
         setMessages(
@@ -37,8 +45,7 @@ export const fetchHistory = async (mode: string, setMessages: (val: Message[]) =
                 id: String(m.id),
                 role: m.sender === "user" ? "user" : "assistant",
                 content: m.message,
-                kind: m.message?.includes("<") ? "media" : "text",
             }))
         );
     }
-};
+}

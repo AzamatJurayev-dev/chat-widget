@@ -11,26 +11,22 @@ export function ChatWidget({ root }: { root: HTMLElement }) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
 
-    const [streaming, setStreaming] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [statusText, setStatusText] = useState<string | null>(null);
 
-    /* ===== FAKE TYPING STATE ===== */
-    const rawTextRef = useRef("");
-    const fakeCancelRef = useRef(false);
+    const bufferRef = useRef("");
+    const typingCancelRef = useRef(false);
 
     const aiMsgIdRef = useRef<string | null>(null);
-    const esRef = useRef<EventSource | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
 
     /* ===== THEME ===== */
     useEffect(() => {
         const update = () => root.setAttribute("data-theme", detectTheme());
         update();
-
         const obs = new MutationObserver(update);
         obs.observe(document.documentElement, { attributes: true });
         obs.observe(document.body, { attributes: true });
-
         return () => obs.disconnect();
     }, []);
 
@@ -39,57 +35,96 @@ export function ChatWidget({ root }: { root: HTMLElement }) {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages.length, statusText]);
 
-    /* ===== HISTORY (FAQAT MODE O‘ZGARGANDA) ===== */
+    /* ===== HISTORY ===== */
     useEffect(() => {
         if (mode) fetchHistory(mode, setMessages);
     }, [mode]);
 
-    /* ===== FAKE TYPING ENGINE ===== */
+    /* ===== SPEED BY LENGTH ===== */
+    function typingSpeed(len: number) {
+        if (len < 100) return 15;
+        if (len < 300) return 25;
+        if (len < 800) return 35;
+        return 45;
+    }
+
+    /* ===== FAKE TYPING ===== */
     function fakeTyping(text: string) {
-        fakeCancelRef.current = false;
+        typingCancelRef.current = false;
 
         let i = 0;
-        let output = "";
+        let out = "";
+        const delay = typingSpeed(text.length);
 
-        const typeNext = () => {
-            if (fakeCancelRef.current) return;
+        const tick = () => {
+            if (typingCancelRef.current) return;
             if (i >= text.length) return;
 
-            const step = Math.random() > 0.75 ? 2 : 1;
-            const chunk = text.slice(i, i + step);
-            i += step;
-
-            output += chunk;
+            out += text[i];
+            i++;
 
             setMessages((prev) =>
                 prev.map((m) =>
-                    m.id === aiMsgIdRef.current
-                        ? { ...m, content: output }
-                        : m
+                    m.id === aiMsgIdRef.current ? { ...m, content: out } : m
                 )
             );
 
-            const lastChar = chunk.slice(-1);
-            let delay = 25 + Math.random() * 50;
-            if (lastChar === " ") delay += 80;
-            if (".,!?".includes(lastChar)) delay += 150;
-
-            setTimeout(typeNext, delay);
+            setTimeout(tick, delay);
         };
 
-        typeNext();
+        tick();
     }
 
-    /* ===== SEND MESSAGE ===== */
+    /* ===== STREAM (FETCH) ===== */
+    async function readStream(url: string) {
+        const res = await fetch(url);
+        const reader = res.body!.getReader();
+        const decoder = new TextDecoder();
+
+        let partial = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            partial += decoder.decode(value, { stream: true });
+            const lines = partial.split("\n");
+            partial = lines.pop() || "";
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+
+                const clean = line.replace(/^data:\s*/, "");
+                try {
+                    const data = JSON.parse(clean);
+
+                    if (data.type === "status") {
+                        setStatusText(data.content);
+                    }
+
+                    if (data.type === "token") {
+                        bufferRef.current += data.content;
+                    }
+                } catch {}
+            }
+        }
+
+        // STREAM TUGADI
+        setLoading(false);
+        setStatusText(null);
+
+        const text = bufferRef.current;
+        bufferRef.current = "";
+
+        fakeTyping(text);
+    }
+
+    /* ===== SEND ===== */
     async function sendMessage() {
         if (!input.trim() || !mode) return;
 
-        /* old typingni to‘xtat */
-        fakeCancelRef.current = true;
-        rawTextRef.current = "";
-
-        esRef.current?.close();
-        setStreaming(false);
+        typingCancelRef.current = true;
+        bufferRef.current = "";
 
         const userMsg: Message = {
             id: crypto.randomUUID(),
@@ -99,9 +134,8 @@ export function ChatWidget({ root }: { root: HTMLElement }) {
 
         setMessages((p) => [...p, userMsg]);
         setInput("");
-        setStatusText(null);
-
-        setStreaming(true);
+        setLoading(true);
+        setStatusText("Yozilmoqda...");
 
         const endpoint = mode === "admin" ? "/sql/" : "/query/";
         const res = await apiFetch<any>(endpoint, { question: userMsg.content });
@@ -111,42 +145,15 @@ export function ChatWidget({ root }: { root: HTMLElement }) {
 
         setMessages((p) => [...p, { id: aiId, role: "assistant", content: "" }]);
 
-        esRef.current = new EventSource(
-            `${res.stream_url}?token=${CONFIG.token}&project_id=${CONFIG.projectId}&service_key=${CONFIG.serviceKey}`
-        );
+        const streamUrl =
+            `${res.stream_url}?token=${CONFIG.token}` +
+            `&project_id=${CONFIG.projectId}` +
+            `&service_key=${CONFIG.serviceKey}`;
 
-        esRef.current.onmessage = (e) => {
-            const data = JSON.parse(e.data);
-
-            if (data.type === "status") {
-                setStatusText(data.content);
-                return;
-            }
-
-            if (data.type === "token") {
-                rawTextRef.current += data.content;
-                return;
-            }
-
-            if (data.type === "done") {
-                esRef.current?.close();
-                setStreaming(false);
-                setStatusText(null);
-
-                const fullText = rawTextRef.current;
-                rawTextRef.current = "";
-
-                fakeTyping(fullText);
-            }
-        };
-
-        esRef.current.onerror = () => {
-            esRef.current?.close();
-            setStreaming(false);
-            setStatusText(null);
-        };
+        readStream(streamUrl);
     }
 
+    /* ===== UI ===== */
     return (
         <>
             {open && (
@@ -186,13 +193,10 @@ export function ChatWidget({ root }: { root: HTMLElement }) {
                                         }
                                     >
                                         {m.kind !== "media" && m.content}
-                                        {streaming && m.id === aiMsgIdRef.current && (
-                                            <span className="typing-cursor" />
-                                        )}
                                     </div>
                                 ))}
 
-                                {statusText && (
+                                {loading && statusText && (
                                     <div className="chat-status chat-status-loading">
                                         <span className="spinner" />
                                         {statusText}

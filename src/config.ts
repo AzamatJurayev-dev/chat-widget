@@ -1,4 +1,4 @@
-const script =
+export const script =
     (document.currentScript as HTMLScriptElement) ||
     document.querySelector('script[src*="chat-widget"]');
 
@@ -9,3 +9,7 @@ export const CONFIG = {
     serviceKey: script?.getAttribute("data-service-key") || "",
     classMode: script?.getAttribute("data-class-mode") || "dark",
 };
+
+if (!CONFIG.baseURL) {
+    console.error("[ChatWidget] baseURL missing");
+}
